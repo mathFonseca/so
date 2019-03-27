@@ -63,10 +63,10 @@ queue_t *queue_remove (queue_t **queue, queue_t *elem)
 int queue_size (queue_t *queue)
 {
 	int size = 1;
-	queue_t *aux = NULL;
+	queue_t *aux = queue;
 	while(aux->next != queue->prev->next)
 	{
-		aux->next = queue->next->next;
+		aux->next = aux->next->next;
 		size++;
 	}
 	return size;
