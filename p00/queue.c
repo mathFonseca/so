@@ -19,22 +19,34 @@ int search (queue_t **queue, queue_t *elem)
 // Função para adicionar um elemento na fila.
 void queue_append (queue_t **queue, queue_t *elem)
 {
-	// A fila existe? (não é nula)
-	// o elemento existe? (não é nulo)
-	// ele pertence alguma outra fila?
-	if( queue != NULL && elem != NULL && (elem->next == NULL && elem->prev == NULL))
+	// A fila existe
+	if(queue != NULL)
 	{
-		// Tudo pronto para adicionar ele no "FINAL" da fila.
-		elem->next = (*queue)->prev->next;
-		(*queue)->next->prev = elem;
-		elem->prev = (*queue)->prev;
-		(*queue)->prev = elem;
+		// Elemento existe / não pertence a mais nenhuma fila.
+		if(elem != NULL && (elem->next == NULL && elem->prev == NULL))
+		{
+			// Insere um elemento em uma fila que já tem algo nela.
+			elem->next = (*queue)->prev->next;
+			elem->prev = (*queue)->prev;
+			// elem agora é o elemento anterior de queue.
+			// agora atualizamos o elemento anterior de queue para apontar para elem.
+			(*queue)->prev->next = elem;
+			(*queue)->prev = elem;
+		}
+		else
+		{
+			// mata a função?
+			printf("Elemento não existe ou pertence a outra fila.");
+		}
 	}
 	else
+	// Uma fila = NULL é nova, acabou de ser criada.
 	{
-		printf("O elemento está em alguma outra fila");
-		printf(" ou o elemento não existe");
-		printf("ou a fila especificada não existe.");
+		// Inserindo o primeiro elemento de todos.
+		// Ele aponta para si mesmo, nos dois sentidos.
+		*queue = elem;
+		(*queue)->next = elem;
+		(*queue)->prev = elem;
 	}
 }
 
@@ -62,14 +74,21 @@ queue_t *queue_remove (queue_t **queue, queue_t *elem)
 }
 int queue_size (queue_t *queue)
 {
-	int size = 1;
-	queue_t *aux = queue;
-	while(aux->next != queue->prev->next)
+	if(queue != NULL)
 	{
-		aux->next = aux->next->next;
-		size++;
+		int size = 1;
+		queue_t *aux = queue;
+		while(aux->next != queue->prev->next)
+		{
+			aux->next = aux->next->next;
+			size++;
+		}
+		return size;
 	}
-	return size;
+	else
+	{
+		return 0;
+	}
 }
 void queue_print (char *name, queue_t *queue, void print_elem (void*) )
 {
