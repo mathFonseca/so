@@ -8,12 +8,16 @@
 #define __DATATYPES__
 #include <ucontext.h> //Incluir a biblioteca para contexto das tarefas.
 
+// Enumeração dos estados de uma tarefa
+enum status_t{nova, pronta, executando, suspensa, terminada};
 // Estrutura que define uma tarefa
 typedef struct task_t
 {
-  struct task_t *prev, *next;      // Para usar com a biblioteca de filas do lab 0.
-  int tid;                                      // ID da tarefa
-  ucontext_t context;                 // Indica o contexto da tarefa
+    struct task_t *prev, *next;      // Para usar com a biblioteca de filas do lab 0.
+    int tid;                                      // ID da tarefa
+    ucontext_t context;                 // Indica o contexto da tarefa
+    enum status_t status;                         // Status (Estado) da tarefa
+
 } task_t ;
 
 // estrutura que define um semáforo
