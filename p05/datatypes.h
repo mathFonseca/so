@@ -9,13 +9,16 @@
 #include <ucontext.h> //Incluir a biblioteca para contexto das tarefas.
 
 enum status_t{pronta, executando, suspensa, terminada};
+enum tipo_t{sistema, usuario};
 // Estrutura que define uma tarefa
 typedef struct task_t
 {
-  struct task_t *prev, *next;      // Para usar com a biblioteca de filas do lab 0.
-  int tid;                                      // ID da tarefa
-  ucontext_t context;                 // Indica o contexto da tarefa
-  enum status_t status;
+  struct task_t *prev, *next;	// Para usar com a biblioteca de filas do lab 0.
+  int tid;			// ID da tarefa
+  ucontext_t context;		// Indica o contexto da tarefa
+  enum status_t status;	// Define o status da tarefa.
+  enum tipo_t tipo;		// Define o tipo da tarefa (Sistema ou Usuário)
+  int quantum;			// Quantum restante de uma tarefa.
 } task_t ;
 
 // estrutura que define um semáforo
