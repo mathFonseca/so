@@ -19,6 +19,9 @@ LAB 03.
 //Definição de variáveis globais.
 //#define DEBUG
 #define STACKSIZE 32768		/* tamanho de pilha das threads */
+struct itimerval timer;			// Estrutura do timer REAL
+struct itimerval virtual;		// Estrutura do timer VIRTUAL (para pausas)
+struct sigaction action ;		// Estrutura do tratador de sinais
 
 
 int contador_tarefa;       // Para gerar os IDs das tarefas.
@@ -27,8 +30,12 @@ task_t *taskAtual;         // Para saber qual é a tarefa sendo executada no mom
 task_t* despachante;    // Para ter sempre uma referência para o despachante.
 task_t* fila_prontas;
 task_t* fila_suspensas;
+int quantum;		// Define o quantum geral do sistema.
 
 void dispatcher_body();
+void decrem_ticks();
+void timer_inicio();
+void timer_arm();
 
 // Escalonador do Ping Pong OS.
 // Inicialmente funciona com a política FCFS (FIFO) para uma fila tarefas PRONTAS.
@@ -45,17 +52,20 @@ task_t *escalonador()
 //Inicializa as estruturas internas do Ping Pong OS.
 void pingpong_init()
 {
-	setvbuf(stdout, 0, _IONBF, 0); /* desativa o buffer da saida padrao (stdout), usado pela função printf */
+	setvbuf(stdout, 0, _IONBF, 0); 	// Desativa o buffer da saida padrao (stdout), usado pela função printf */
 	PingPongMain = malloc(sizeof(task_t));  // Inicializamos a Ping Pong Main com a estrutura de tarefas
 	PingPongMain->tid = 0;                         // O ID da Ping Pong Main será 0, o primeiro de todos.
-	//Função que desativa o buffer do printf.
+	PingPongMain->tipo = usuario;
 	taskAtual = PingPongMain;                    // Nossa tarefa atual passa a ser nossa main.
 	contador_tarefa = 1;                             // As próximas tarefas terão ID de 1 em diante.
 
+	quantum = 20;				// Define um quantum geral de 20 ticks
+	timer_inicio();
 	// Cria o despachante.
 	despachante = malloc(sizeof(task_t));
 	// Cria a tarefa do despachante
 	task_create(despachante, dispatcher_body, "");
+	despachante->tipo = sistema;
 	// Cria a fila de tarefas prontas vazia (inicialmente)
 	fila_prontas = NULL;
 	fila_suspensas = NULL;
@@ -66,9 +76,6 @@ void pingpong_init()
 }
 
 
-// *task                          descritor da nova tarefa
-// void (*start_func)(void *)     funcao corpo da tarefa
-// void *arg                      argumentos para a tarefa
 int task_create (task_t *task, void (*start_func)(void *), void *arg)
 {
 	getcontext(&(task->context));          //Pega o contexto da tarefa/task recebida (no parametro;)
@@ -196,7 +203,7 @@ void dispatcher_body()
 		task_t *tarefa_escolhida = escalonador();
 		if(tarefa_escolhida)
 		{
-			// Ações antes de lançar a próxima tarefa.
+			timer_arm();	// Inicia o relógio antes de entrar na Tarefa Escolhida
 			task_switch(tarefa_escolhida);
 			// Ações depois de lançar a próxima tarefa.
 		}
@@ -204,7 +211,7 @@ void dispatcher_body()
 	task_exit(0);
 }
 
-//Retirar a execũção da tarefa atual e por ela na fila de prontas novamente.
+// Retirar a execũção da tarefa atual e por ela na fila de prontas novamente.
 void task_yield()
 {
 	// Checamos a tarefa atual. Se não for a main, prossegue.
@@ -263,10 +270,10 @@ void task_resume(task_t* task)
 	tarefa_acordada->status = pronta;
 }
 
-void timer_init()	// Inicializa o temporizador do sistema.
+void timer_inicio()	// Inicializa o temporizador do sistema.
 {
 	// registra a a��o para o sinal de timer SIGALRM
-	action.sa_handler = tratador ;
+	action.sa_handler = decrem_ticks;
 	sigemptyset (&action.sa_mask) ;
 	action.sa_flags = 0 ;
 	if (sigaction (SIGALRM, &action, 0) < 0)
@@ -274,21 +281,31 @@ void timer_init()	// Inicializa o temporizador do sistema.
 		perror ("Erro em sigaction: ") ;
 		exit (1) ;
 	}
-	// ajusta valores do temporizador
+
+	// ajusta valores do temporizador REAL
 	timer.it_value.tv_usec = 1000 ;	// primeiro disparo, em micro-segundos. 1000 micro = 1 mili
 	timer.it_value.tv_sec  = 0 ;		// primeiro disparo, em segundos. Não dispara em "segundos"
 	timer.it_interval.tv_usec = 1000 ;	// disparos subsequentes, em micro-segundos. 1000 micro = 1 mili
 	timer.it_interval.tv_sec  = 0 ;		// disparos subsequentes, em segundos
 
-	// arma o temporizador ITIMER_REAL (vide man setitimer)
-	if (setitimer (ITIMER_REAL, &timer, 0) < 0)
-	{
-	perror ("Erro em setitimer: ") ;
-	exit (1) ;
-	}
 }
 
 void decrem_ticks()	// Decrementa quantidade de ticks de uma tarefa.
 {
-	taskAtual->
+	taskAtual->quantum--;		// Decrementa 1 tick da tarefa atual
+	if(taskAtual->quantum <= 0 /*&& taskAtual->tipo == usuario*/)	// Se os quantuns acabaram e o a tarefa é do tipo de usuario, retorna para a fila.
+	{
+		taskAtual->quantum = quantum;	// Recarrega quantum da tarefa
+		task_yield();				// Retorna
+	}
+}
+
+// * * * * * * * * * * *
+void timer_arm()	// Arma o temporizador ITIMER_REAL
+{
+	if(setitimer(ITIMER_REAL, &timer, 0) <0)
+	{
+		perror("Erro em setitimer: ");
+		exit(1);
+	}
 }
