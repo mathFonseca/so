@@ -29,25 +29,25 @@ void dispatcher_body();		// Declaração da função do despachante.
 
 task_t *escalonador()			// Escalonador por Prioridades.
 {
-	task_t *prioritaria = fila_prontas;
-	task_t *aux_comp = fila_prontas->next;
+	task_t *prioritaria = fila_prontas;		// Iniciamos com a head sendo a prioritária
+	task_t *aux_comp = fila_prontas->next;	// Percorremos do elemento seguinte até o fim da fila (circular)
 	while(aux_comp != fila_prontas)
 	{
-		if(prioritaria->prio_dim >= aux_comp->prio_dim)
+		if(prioritaria->prio_dim >= aux_comp->prio_dim)	// Se aux_comp for mais prioritária
 		{
-			if(prioritaria->prio_dim > -20)
+			if(prioritaria->prio_dim > -20)			// Envelhecemos a prioritaria
 			{
 				prioritaria->prio_dim = prioritaria->prio_dim + alfa;
 			}
-			prioritaria = aux_comp;
+			prioritaria = aux_comp;			// Atualizamos a tarefa mais prioritária encontrada até então
 		}
 		else
 		{
-			if(aux_comp->prio_dim > -20)
+			if(aux_comp->prio_dim > -20)			// Envelhecemos a aux_comp
 			{									aux_comp->prio_dim = aux_comp->prio_dim + alfa;
 			}
 		}
-		aux_comp = aux_comp->next;
+		aux_comp = aux_comp->next;			// Movemos para o próximo elemento da fila
 	}
 	task_t *tarefa_escolhida = (task_t*)queue_remove((queue_t**)&fila_prontas, (queue_t*)prioritaria);
 	return tarefa_escolhida;	// retorna a task mais prioritária
