@@ -14,18 +14,17 @@ LAB 02.
 #endif
 
 //Definição de variáveis globais.
-#define DEBUG
-#define STACKSIZE 32768		/* tamanho de pilha das threads */
+//#define DEBUG
+#define STACKSIZE 32768		// Tamanho de pilha das threads
 
+int contador_tarefa;			// Para gerar os IDs das tarefas.
+task_t *PingPongMain;			// A main do Ping Pong tem que ser uma tarefa também.
+task_t *taskAtual;				// Para saber qual é a tarefa sendo executada no momento
 
-int contador_tarefa;       // Para gerar os IDs das tarefas.
-task_t *PingPongMain;   // A main do Ping Pong tem que ser uma tarefa também.
-task_t *taskAtual;         // Para saber qual é a tarefa sendo executada no momento
-// ******************************
-//Inicializa as estruturas internas do Ping Pong OS.
+// Inicializa as estruturas internas do Ping Pong OS.
 void pingpong_init()
 {
-    setvbuf(stdout, 0, _IONBF, 0); /* desativa o buffer da saida padrao (stdout), usado pela função printf */
+    setvbuf(stdout, 0, _IONBF, 0); // desativa o buffer da saida padrao (stdout), usado pela função printf
     PingPongMain = malloc(sizeof(task_t));  // Inicializamos a Ping Pong Main com a estrutura de tarefas
     PingPongMain->tid = 0;                         // O ID da Ping Pong Main será 0, o primeiro de todos.
     //Função que desativa o buffer do printf.
@@ -34,17 +33,13 @@ void pingpong_init()
 
 
   #ifdef DEBUG
-    printf("PingPong iniciado com sucesso.\n");
+		printf("PingPong iniciado com sucesso.\n");
   #endif
 }
 
-
-// *task                          descritor da nova tarefa
-// void (*start_func)(void *)     funcao corpo da tarefa
-// void *arg                      argumentos para a tarefa
 int task_create (task_t *task, void (*start_func)(void *), void *arg)
 {
-  getcontext(&(task->context));          //Pega o contexto da tarefa/task recebida (no parametro;)
+  getcontext(&(task->context));          // Pega o contexto da tarefa/task recebida (no parametro;)
 
   // Seção igual ao context.c
   // Com adição da linha que cria a pilha
@@ -52,24 +47,19 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg)
   stack = malloc (STACKSIZE);                      // Aloca a pilha
    if (stack)
    {
-        task->context.uc_stack.ss_sp = stack ;                // Ponteiro para a pilha.
-        task->context.uc_stack.ss_size = STACKSIZE;     // Tamanho da pilha. Definido nas variáveis globais.
-        task->context.uc_stack.ss_flags = 0;                    // Recebe flags = 0 (não ativa nenhuma das flags)
-        task->context.uc_link = 0;                                     // Para quando realizar troca de contextos.
+        task->context.uc_stack.ss_sp = stack ;				// Ponteiro para a pilha.
+        task->context.uc_stack.ss_size = STACKSIZE;		// Tamanho da pilha. Definido nas variáveis globais.
+        task->context.uc_stack.ss_flags = 0;				// Recebe flags = 0 (não ativa nenhuma das flags)
+        task->context.uc_link = 0;							// Para quando realizar troca de contextos.
    }
    else
    {
         printf("Erro ao inicializar a pilha.");
-        return (-1); // Retorna valor negativo para erros.
+        return (-1);											// Retorna valor negativo para erros.
    }
-   // Agora que as informações foram devidamente preenchidas, associamos a função corpo a tarefa ao nosso descritor.
-   // Coloquei paranteses em volta do void pois o compilador dizia que tinha few arguments.
-   makecontext(&(task->context), (void*) (*start_func), 1, arg);
 
-   // Por último, preenchemos as informações restantes do descritor da tarefa
-   // o ID é igual a contagem de tarefas atuais.
-   // Mesmo se futuramente a tarefa for concluída, a contagem não vai diminuir. Assim garantimos que nenhuma tarefa vai receber o mesmo ID.
-   task->tid = contador_tarefa;
+   makecontext(&(task->context), (void*) (*start_func), 1, arg);		// Associamos a função corpo a tarefa ao nosso descritor.
+   task->tid = contador_tarefa;		// o ID é igual a contagem de tarefas atuais.
    contador_tarefa++;
 
    //  Imprime a mensagem de depuração.

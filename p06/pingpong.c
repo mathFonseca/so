@@ -29,7 +29,7 @@ task_t *taskAtual;         // Para saber qual é a tarefa sendo executada no mom
 task_t* despachante;    // Para ter sempre uma referência para o despachante.
 task_t* fila_prontas;
 task_t* fila_suspensas;
-int quantum;		// Define o quantum geral do sistema.
+int quantum = 20;		// Define o quantum geral do sistema.
 int total_time;		// Relógio universal do sistema.
 
 void dispatcher_body();
@@ -220,7 +220,7 @@ int task_id ()
 // É usado para ser uma interface entre as trocas de contexto das tarefas
 void dispatcher_body()
 {
-	while( queue_size((queue_t*) fila_prontas) > 0)
+	while(queue_size((queue_t*) fila_prontas) > 0)
 	{
 		// Pega a tarefa do escalonador
 		task_t *tarefa_escolhida = escalonador();

@@ -16,6 +16,7 @@ LAB 04.
 #warning Este codigo foi planejado para ambientes UNIX (LInux, *BSD, MacOS). A compilacao e execucao em outros ambientes e responsabilidade do usuario.
 #endif
 
+//Definição de variáveis globais.
 //#define DEBUG
 #define STACKSIZE 32768		// Tamanho de pilha das threads
 struct itimerval timer;			// Estrutura do timer REAL
@@ -67,7 +68,7 @@ task_t *escalonador()			// Escalonador por Prioridades.
 
 void pingpong_init()			// Inicializa as estruturas internas do Ping Pong OS.
 {
-	setvbuf(stdout, 0, _IONBF, 0); 		// desativa o buffer da saida padrao (stdout), usado pela função printf */
+	setvbuf(stdout, 0, _IONBF, 0); 		// desativa o buffer da saida padrao (stdout), usado pela função printf
 	PingPongMain = malloc(sizeof(task_t));  	// Inicializamos a Ping Pong Main com a estrutura de tarefas
 	PingPongMain->tid = 0;                         	// O ID da Ping Pong Main será 0, o primeiro de todos.
 	taskAtual = PingPongMain;			// Nossa tarefa atual passa a ser nossa main.

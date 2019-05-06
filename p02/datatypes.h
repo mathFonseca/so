@@ -11,9 +11,9 @@
 // Estrutura que define uma tarefa
 typedef struct task_t
 {
-  struct task_t *prev, *next;      // Para usar com a biblioteca de filas do lab 0.
-  int tid;                                      // ID da tarefa
-  ucontext_t context;                 // Indica o contexto da tarefa
+  struct task_t *prev, *next;		// Para usar com a biblioteca de filas do lab 0.
+  int tid;							// ID da tarefa
+  ucontext_t context;				// Indica o contexto da tarefa
 } task_t ;
 
 // estrutura que define um semáforo
