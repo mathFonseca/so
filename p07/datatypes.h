@@ -21,18 +21,20 @@ enum tipo_t{sistema, usuario};
 typedef struct task_t
 {
   struct task_t *prev, *next;	// Para usar com a biblioteca de filas do lab 0.
-  int tid;						// ID da tarefa
-  ucontext_t context;			// Indica o contexto da tarefa
-  enum status_t status;		// Define o status da tarefa.
-  enum tipo_t tipo;				// Define o tipo da tarefa (Sistema ou Usuário)
-  int prio_dim;             			// Prioridade Dinamica
-  int prio_est;              			// Prioridade Estatica
-  int quantum;					// Quantum restante de uma tarefa.
-  int tempo_exec;				// Tempo total de execução.
-  int tempo_proc;				// Tempo total dentro do processador.
-  int num_ativ;					// Número de ativações da tarefa até concluir.
-  int ticks_inicial;				// Quantos ticks tinha o sistema quando a tarefa executou pela primeira vez.
-  int ticks_final;				// Quantos ticks tinha o sistema quando a tarefa terminou de executar. (Ai dá pra ver o tempo total mais facilmente)
+  int tid;  // ID da tarefa
+  ucontext_t context;   // Indica o contexto da tarefa
+  enum status_t status; // Define o status da tarefa.
+  enum tipo_t tipo; // Define o tipo da tarefa (Sistema ou Usuário)
+  int prio_dim; // Prioridade Dinamica
+  int prio_est; // Prioridade Estatica
+  int quantum;  // Quantum restante de uma tarefa.
+  int tempo_exec;   // Tempo total de execução.
+  int tempo_proc;   // Tempo total dentro do processador.
+  int num_ativ; // Número de ativações da tarefa até concluir.
+  int ticks_inicial;    // Quantos ticks tinha o sistema quando a tarefa\
+      executou pela primeira vez.
+  int ticks_final;  // Quantos ticks tinha o sistema quando a tarefa terminou\
+   de executar. (Ai dá pra ver o tempo total mais facilmente)
 } task_t ;
 
 // estrutura que define um semáforo

@@ -1,9 +1,8 @@
 MODIFICAÇÕES QUE PRECISAM SER FEITAS ANTES DE INICIAR O LAB 07
 
 
--> Modificar Escalonador para usar as funções
-task_getprio
-task_setprio
+ALTERAR ESCALONADOR
+VER PROBLEMA NA MAIN
 
 LAB 07
 
@@ -44,6 +43,8 @@ LAB 12
 Filas de mensagens.
 6 Horas.
 Não depende do lab 11. Independente.
+
+OPCIONAIS;
 
 LAB 13
 

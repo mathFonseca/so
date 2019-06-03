@@ -23,19 +23,18 @@ A compilacao e execucao em outros ambientes e responsabilidade do usuario.
 //Definição de variáveis globais.
 //#define DEBUG
 #define STACKSIZE 32768	// Tamanho de pilha das threads
+#define QUANTUM 20
+#define ALFA 1
+
 struct itimerval timer;	// Estrutura do timer REAL
 struct itimerval virtual;	// Estrutura do timer VIRTUAL (para pausas)
 struct sigaction action ;	// Estrutura do tratador de sinais
-
-
 int contador_tarefa;	// Para gerar os IDs das tarefas.
 task_t *PingPongMain;	// A main do Ping Pong tem que ser uma tarefa também.
 task_t *taskAtual;	// Para saber qual é a tarefa sendo executada no momento.
 task_t* despachante;	// Para ter sempre uma referência para o despachante.
 task_t* fila_prontas;	// Fila de tarefas prontas
 task_t* fila_suspensas;	// Fila de tarefas suspensas.
-int alfa;	// Constante de envelhecimento.
-int quantum;	// Define o quantum geral do sistema.
 int total_time;	// Relógio universal do sistema.
 
 void dispatcher_body();	// Declaração da função do despachante.
@@ -47,35 +46,58 @@ void timer_arm();	// Declaração da função que "arma" o timer.
 
 task_t *escalonador()
 {
-	task_t *prioritaria = fila_prontas;	// Iniciamos com a head sendo a\
-	 prioritária
-	task_t *aux_comp = fila_prontas->next;	// Percorremos do elemento seguinte\
-	 até o fim da fila (circular)
-	while(aux_comp != fila_prontas)
-	{
-		if(prioritaria->prio_dim >= aux_comp->prio_dim)	// Se aux_comp for mais\
-		 prioritária
-		{
-			if(prioritaria->prio_dim > -20)	// Envelhecemos a prioritaria
-			{
-				prioritaria->prio_dim = prioritaria->prio_dim + alfa;
-			}
-			prioritaria = aux_comp;	// Atualizamos a tarefa mais prioritária\
-			 encontrada até então
-		}
-		else
-		{
-			if(aux_comp->prio_dim > -20)	// Envelhecemos a aux_comp
-			{
-				aux_comp->prio_dim = aux_comp->prio_dim + alfa;
-			}
-		}
-		aux_comp = aux_comp->next;	// Movemos para o próximo elemento da fila.
-	}
-	task_t *tarefa_escolhida = (task_t*)queue_remove((queue_t**)&fila_prontas,\
-	 (queue_t*)prioritaria);
-	return tarefa_escolhida;	// retorna a task mais prioritária
+	task_t *aux;
+	task_t *prioridade;
+	task_t *executando = taskAtual;
+	int valor;
 
+	if(taskAtual != despachante)
+	{
+		valor = task_getprio(taskAtual);
+		aux = taskAtual;
+	}
+	else
+	{
+		valor = 21;
+		aux = fila_prontas;
+	}
+
+	prioridade = aux;
+	aux = fila_prontas;
+
+	if(task_getprio(aux) < valor)
+	{ // Se tiverem duas tarefas com mesma prioridade, dá prioridade à primeira que encontrou ou à atual
+		valor = task_getprio(aux);
+		prioridade = aux;
+	}
+	aux = aux->next;
+
+	// Percorrer a fila de tarefas prontas e verificar qual tem a maior prioridade
+	while(aux != fila_prontas)
+	{
+		if(task_getprio(aux) < valor)
+		{ // Se tiverem duas tarefas com mesma prioridade, dá prioridade à primeira que encontrou ou à atual
+			valor = task_getprio(aux);
+			prioridade = aux;
+		}
+		aux = aux->next;
+	}
+
+	aux = prioridade->next;
+
+	// Envelhece todas as outras tarefas da fila
+	while(aux != prioridade)
+	{
+		aux->prio_dim--;
+		aux = aux->next;
+	}
+
+
+	// Remove a tarefa mais prioritária da fila e zera prioridade dinâmica
+	task_setprio(prioridade,prioridade->prio_est);
+	queue_remove ((queue_t**) &fila_prontas, (queue_t *)prioridade);
+
+	return prioridade;  // Algoritmo FCFS: retorna a primeira tarefa da fila de prontas
 }
 
 void pingpong_init()	// Inicializa as estruturas internas do Ping Pong OS.
@@ -85,15 +107,28 @@ void pingpong_init()	// Inicializa as estruturas internas do Ping Pong OS.
 	PingPongMain = malloc(sizeof(task_t));	// Inicializamos a Ping Pong Main com a\
 	 estrutura de tarefas
 	PingPongMain->tid = 0;	// O ID da Ping Pong Main será 0, o primeiro de todos.
+
+	PingPongMain->prio_dim = 0;	// Prioridade Dinamica
+    PingPongMain->prio_est = 0;	// Prioridade Estatica
+	PingPongMain->quantum = QUANTUM;	// Quantum restante de uma tarefa.
+
+	PingPongMain->status = pronta;
+	PingPongMain->tempo_exec = 0;	// Tempo total de execução.
+    PingPongMain->tempo_proc = 0;	// Tempo total dentro do processador.
+    PingPongMain->num_ativ = 0;	// Número de ativações da tarefa até concluir.
+    PingPongMain->ticks_inicial = total_time;	// Quantos ticks tinha o\
+		sistema quando a tarefa executou pela primeira vez.
+
 	taskAtual = PingPongMain;	// Nossa tarefa atual passa a ser nossa main.
 	contador_tarefa = 1;	// As próximas tarefas terão ID de 1 em diante.
-	alfa = -1;	// Seta a constante de envelhecimento para -1.
-	quantum = 20;
+
 	timer_inicio();
 	despachante = malloc(sizeof(task_t));	// Cria o despachante.
 	task_create(despachante, dispatcher_body, "");	// Cria a tarefa do despachante
 	fila_prontas = NULL;	// Inicializa a fila de tarefas prontas vazia
 	fila_suspensas = NULL;	// Inicializa a fila de tarefas suspensas vazia
+
+	task_yield();	// Coloca a Main na fila.
 
 	#ifdef DEBUG
 		printf("PingPong iniciado com sucesso.\n");
@@ -135,6 +170,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg)
 		task->status = pronta;
 		task->prio_dim = 0;	// Seta a prioridade dinamica para default (0)
 		task->prio_est = 0;	// Seta a prioridade estatica para default (0)
+		task->quantum = QUANTUM;	// Seta o quantum da tarefa pro definido;
 	}
 
 	// Inicializa as variáveis em relação aos tempos.
@@ -159,10 +195,8 @@ void task_exit (int exitCode)	// Termina a tarefa corrente, indicando um\
 		 encerramento.
 	#endif
 	// Atualiza variáveis de tempo
-	// 1 - Tempo de Execução
 	// É o tempo que levou desde que ela foi criada até o tempo atual
 	taskAtual->tempo_exec = total_time - taskAtual->ticks_inicial;
-	// 2 - Tempo de Processamento
 	/* É uma soma contínua do tempo que ele ficou executando até receber um
 	switch. Ele pega o tempo que estava quando ele executou pela última vez e
 	subtrai do tempo do sistema. Aqui, ele soma essa última etapa até o fim
@@ -173,18 +207,8 @@ void task_exit (int exitCode)	// Termina a tarefa corrente, indicando um\
 		Activations. \n", taskAtual->tid, taskAtual->tempo_exec, \
 		taskAtual->tempo_proc, taskAtual->num_ativ);
 
-	// Retorna para a função Despachante se for uma tarefa qualquer
-	// Ou retorna para main do Ping Pong se for o Despachante
-	if( taskAtual == despachante)
-	{
-		// Se estamos no despachante, é porque não teve nenhuma tarefa mais no \
-			escalonador.
-		task_switch(PingPongMain);	// Retornamos para a main.
-	}
-	else
-	{
-		task_switch(despachante);	//  Caso contrário, mudamos para o despachante.
-	}
+	// Retorna para a função Despachante se for uma tarefa qualquer.
+	task_switch(despachante);
 }
 
 // Alterna a execução para a tarefa indicada
@@ -202,18 +226,16 @@ int task_switch (task_t *task)
 		printf("Iniciando a troca de contexto %d para %d. \n", taskAtual->tid,\
 		 	task->tid);
 	#endif
+
 	task->status = executando;	// Atualizamos o estado da tarefa que vai entrar\
 	 	para executando
 	// Atualizamos as variáveis de tempo.
-	// 1 - Tempo de processamento.
 	// É uma soma contínua do tempo que ele ficou executando até receber um\
 	 	switch. Ele pega o tempo que estava quando ele executou pela última vez\
 		e subtrai do tempo do sistema.
 	taskAtual->tempo_proc += total_time - taskAtual->ticks_final;
-	// 2 - Número de ativações.
 	// Incrementa a cada switch de entrada.
 	task->num_ativ++;
-	// 3 - Ticks da última execução (ticks_final)
 	// É o exato tempo do sistema quando esse switch foi executado.
 	task->ticks_final = total_time;
 
@@ -222,6 +244,12 @@ int task_switch (task_t *task)
 	task_t* aux;
 	aux = taskAtual;
 	taskAtual = task;
+
+	if(taskAtual != despachante)	// Pois o despachante não tem quantum.
+	{
+		taskAtual->quantum = QUANTUM;	// Recarrega o quantum da tarefa.
+	}
+
 	swapcontext(&(aux->context),&(taskAtual->context));	// Realizamos a troca de\
 	 contexto
 	return 0;
@@ -258,8 +286,8 @@ void dispatcher_body()
 
 void task_yield()
 {
-	// Checamos a tarefa atual. Se não for a main, prossegue.
-	if(taskAtual != PingPongMain)
+	// Checamos a tarefa atual pra ver se não é o despachante.
+	if(taskAtual != despachante)
 	{
 		// Se a tarefa não for a Main, coloca a task atual no fim da fila de\
 		 tarefas prontas. Atualizamos o estado para prontas.
@@ -287,6 +315,8 @@ void task_suspend(task_t* task, task_t** fila_suspensas)
 			queue_append( (queue_t**)&fila_suspensas, (queue_t*)tarefa_suspensa);
 			// Atualizamos o estado.
 			tarefa_suspensa->status = suspensa;
+			tarefa_suspensa->quantum = QUANTUM;	// Recarrega o quantum da tarefa\
+			 suspensa.
 		}
 		else
 		{
@@ -297,6 +327,8 @@ void task_suspend(task_t* task, task_t** fila_suspensas)
 			queue_append( (queue_t**)&fila_suspensas, (queue_t*)tarefa_suspensa);
 			// Atualizamos o estado.
 			tarefa_suspensa->status = suspensa;
+			tarefa_suspensa->quantum = QUANTUM;	// Recarrega o quantum da tarefa\
+			 suspensa.
 		}
 		// Se fila_suspensas for nula, não faz a retirada.
 	}
@@ -349,7 +381,7 @@ int task_getprio(task_t* task)
 
 // Inicializa o temporizador do sistema
 
-void timer_inicio().
+void timer_inicio()
 {
 	// Registra a a��o para o sinal de timer SIGALRM
 	action.sa_handler = decrem_ticks;
@@ -381,7 +413,7 @@ void decrem_ticks()
 	if(taskAtual->quantum <= 0 /*&& taskAtual->tipo == usuario*/)	// Se os\
 	 	quantuns acabaram e o a tarefa é do tipo de usuario, retorna para a fila.
 	{
-		taskAtual->quantum = quantum;	// Recarrega quantum da tarefa
+		taskAtual->quantum = QUANTUM;	// Recarrega quantum da tarefa
 		task_yield();	// Retorna
 	}
 }
