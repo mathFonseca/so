@@ -627,7 +627,7 @@ void task_yield ()
 	// Se a tarefa atual não for o despachante e seu pai é -1, (não tem pai).\
 	A tarefa não pode estar em um semáforo.
 	if(current_task != dispatcher && current_task->task_father == -1\
-		 && current_task->task_status == ready)
+		 && current_task->task_status != barrier)
 	{
 		// colocamos ela na fila de prontas.
 		queue_append((queue_t**) &ready_queue,(queue_t*) current_task);
@@ -856,13 +856,15 @@ int barrier_create (barrier_t *b, int N)
 	if(b != NULL && N > 0)
 	{
 		// Inicializamos os valores.
-		b->slots_number = N;
+		b->max_slots = N;
 		b->slots_used = 0;
 
 		// Barrier ID serve como um "task id" por causa do nosso funcionamento\
 		para JOIN.
 		b->barrier_id = barrier_id;
 		barrier_id++;
+
+		b->task_queue = NULL;
 		return 0;
 	}
 	else
@@ -883,30 +885,54 @@ int barrier_join (barrier_t *b)
 	}
 	else
 	{
-
 		// Não usamos task_father pois join em barreiras e join normal são\
-		distintos.
+		distintos. Usamos uma fila interna a própria barreira, igual semáforo.
 		current_task->barrier_linked = b->barrier_id;
-		task_suspend(current_task);
+		current_task->task_status = barrier;
+		queue_append((queue_t**)&(b->task_queue),(queue_t*)current_task);
 		b->slots_used++;
 
+		#ifdef DEBUG
+		printf("Barrier Join: colocando a tarefa %d na barreira.\nTotal\
+ de tarefas na barreira: %d.\n Máximo de tarefas que a barreira aguenta: %d.\n",\
+		 current_task->task_id, b->slots_used, b->max_slots);
+		#endif
 		// Checamos se a barreira alcançou o máximo de slots.
-		if(b->slots_used == b->slots_number)
+		if(b->slots_used == b->max_slots)
 		{
-			task_t* task_aux, *task_resumed;
-			int i = 0;
-			task_aux = suspended_queue;
-			while( i <= b->slots_number)
+			#ifdef DEBUG
+			printf("Barreira alcançou limite.\n");
+			#endif
+			task_t* task_suspended;
+			task_suspended = b->task_queue;
+
+			#ifdef DEBUG
+			printf("Liberando a tarefa %d da fila de barreira.\n",\
+			 task_suspended->task_id);
+			#endif
+			// Se sim, então liberamos as tarefas uma a uma.
+			while(b->slots_used > 0)
 			{
-				if(task_aux->barrier_linked == b->barrier_id)
+				task_t* task_aux;
+				if(b->task_queue != NULL)
 				{
-					printf("i: %d, slots_used: %d, slots_number: %d.\n",\
-					i, b->slots_used, b->slots_number);
-					task_resumed = task_aux;
-					task_aux = task_aux->next;
-					i++;
-					task_resume(task_resumed);
+					#ifdef DEBUG
+					printf("Slots ocupados: %d.\n", b->slots_used);
+					#endif
 				}
+				task_aux = (task_t*) queue_remove((queue_t**)&(b->task_queue),\
+				(queue_t*)task_suspended);
+				task_aux->task_status = ready;
+				b->slots_used--;
+				#ifdef DEBUG
+				printf("Slots ocupados: %d. Tarefa liberada: %d.\n",\
+				 b->slots_used, task_aux->task_id);
+				#endif
+				queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
+				#ifdef DEBUG
+				printf("Append com sucesso.");
+				#endif
+				task_suspended = b->task_queue;
 			}
 		}
 		task_yield();
@@ -921,23 +947,46 @@ int barrier_destroy (barrier_t *b)
 	// Checamos se barreira existe.
 	if(b != NULL)
 	{
+		#ifdef DEBUG
+		printf("Liberando todas as tarefas da barreira.");
+		#endif
 
-		task_t* task_aux, *task_resumed;
-		int i = 0;
+		task_t* task_suspended;
+		task_suspended = b->task_queue;
 
-		task_aux = suspended_queue;
-		while(i < b->slots_used)
+		#ifdef DEBUG
+		printf("Liberando a tarefa %d da fila de barreira.\n",\
+		 task_suspended->task_id);
+		#endif
+
+		// Checamos se a task_queue da barreira tem elementos dentro dela.
+		if(b->task_queue != NULL && b->slots_used > 0)
 		{
-			if(task_aux->barrier_linked == b->barrier_id)
+			// Assim sendo, então removemos um a um.
+			while(b->slots_used > 0)
 			{
-				printf("where are the error?");
-				task_resumed = task_aux;
-				task_aux = task_aux->next;
-				i++;
-				task_resume(task_resumed);
+				task_t* task_aux;
+				if(b->task_queue != NULL)
+				{
+					#ifdef DEBUG
+					printf("Slots ocupados: %d.\n", b->slots_used);
+					#endif
+				}
+				task_aux = (task_t*) queue_remove((queue_t**)&(b->task_queue),\
+				(queue_t*)task_suspended);
+				task_aux->task_status = ready;
+				b->slots_used--;
+				#ifdef DEBUG
+				printf("Slots ocupados: %d. Tarefa liberada: %d.\n",\
+				 b->slots_used, task_aux->task_id);
+				#endif
+				queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
+				#ifdef DEBUG
+				printf("Append com sucesso.");
+				#endif
+				task_suspended = b->task_queue;
 			}
 		}
-
 		b = NULL;
 		free(b);
 		return 0;
@@ -946,61 +995,7 @@ int barrier_destroy (barrier_t *b)
 	{
 		return -1;
 	}
-}/*
-
-// Inicializa uma barreira
-int barrier_create (barrier_t *b, int N) {
-	if(b == NULL || N < 0) return -1;
-	b->slots_number = N;
-	b->slots_used = 0;
-	b->barrier_id = barrier_id;
-	barrier_id++;
-	return 0;
 }
-
-// Chega a uma barreira
-int barrier_join (barrier_t *b) {
-	if(b == NULL || current_task == NULL) return -1;
-
-	current_task->barrier_linked = b->barrier_id;
-	task_suspend(current_task);
-	b->slots_used++;
-
-	if(b->slots_used == b->slots_number) {
-		task_t *aux, *remover;
-		int i = 0;
-		aux = suspended_queue;
-		while(i < b->slots_number) {
-			if(aux->barrier_linked == b->barrier_id) {
-				remover = aux;
-				aux = aux->next;
-				i++;
-				task_resume(remover);
-			}
-		}
-	}
-	task_yield();
-	return 0;
-}
-
-// Destrói uma barreira
-int barrier_destroy (barrier_t *b) {
-	if(b == NULL) return -1;
-	int i = 0;
-	task_t *aux, *remover;
-	while(i < b->slots_used) {
-		if(aux->barrier_linked == b->barrier_id) {
-				remover = aux;
-				aux = aux->next;
-				i++;
-				task_resume(remover);
-			}
-	}
-	b = NULL;
-	free(b);
-	return 0;
-}
-*/
 // filas de mensagens
 
 // cria uma fila para até max mensagens de size bytes cada

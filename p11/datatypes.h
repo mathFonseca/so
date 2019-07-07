@@ -9,7 +9,7 @@
 
 #include <ucontext.h>
 
-enum task_status{executing, ready, finished, suspended, sleeping, semaphore};
+enum task_status{executing, ready, finished, suspended, sleeping, semaphore, barrier};
 enum task_type{system_task, user_task};
 
 // Estrutura que define uma tarefa
@@ -56,9 +56,10 @@ typedef struct
 // estrutura que define uma barreira
 typedef struct
 {
-  int slots_number;
+  int max_slots;
   int slots_used;
   int barrier_id;
+  task_t* task_queue;
 } barrier_t ;
 
 // estrutura que define uma fila de mensagens
