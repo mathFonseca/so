@@ -250,6 +250,7 @@ task_t* task_scheduler()
 
 	// Reseta a prioridade da tarefa escolhida de volta para a estática.
 	task_setprio(high_priority_task, high_priority_task->estatic_priority);
+	high_priority_task->task_status = executing;
 
 	return high_priority_task;
 }
@@ -358,7 +359,7 @@ void pingpong_init ()
 
 	// Uma vez feito tudo que deveria ser feito, inicializamos o timer.
 	timer_init();
-	task_yield(); // Coloca a tarefa main na fila.
+	//task_yield(); // Coloca a tarefa main na fila.
 
 	#ifdef DEBUG
 		printf("PingPong iniciado com sucesso.\n");
@@ -616,8 +617,9 @@ void task_resume (task_t *task)
 	task->task_father = -1; // Ao ir para fila de prontas, ela deixa de ter pai.
 	// Remove da fila de suspensas,
 	task = (task_t*) queue_remove((queue_t**)&suspended_queue, (queue_t*)task);
-	// Coloca na fila de tarefas prontas.
-	queue_append ((queue_t**)&ready_queue, (queue_t*)task);
+	// Coloca na fila de tarefas prontas desde que não seja a main do SO.
+	if(task != ping_pong_main_task)
+		queue_append ((queue_t**)&ready_queue, (queue_t*)task);
 }
 
 // Função: Task Yield
@@ -628,7 +630,8 @@ void task_yield ()
 	// Se a tarefa atual não for o despachante e seu pai é -1, (não tem pai).\
 	A tarefa não pode estar em um semáforo.
 	if(current_task != dispatcher && current_task->task_father == -1\
-		 && current_task->task_status != barrier)
+		 && current_task->task_status != barrier && current_task->task_status != semaphore\
+		  && current_task != ping_pong_main_task)
 	{
 		// colocamos ela na fila de prontas.
 		queue_append((queue_t**) &ready_queue,(queue_t*) current_task);
@@ -694,7 +697,7 @@ int task_join (task_t *task)
 		current_task->task_father = task->task_id;
 		// Suspendemos nós mesmos.
 		task_suspend(current_task);
-		// Chamamos o Yield, que vai ir para o dispachante.
+		// Chamamos o Yield, que vai ir para o despachante.
 		task_yield();
 
 		return task->exit_code;
@@ -755,7 +758,7 @@ int sem_down (semaphore_t *s)
 		// Se o semáforo existe, entao consome uma das vagas.
 		s->slots--;
 		// Verifica se já ultrapassou o número de vagas possíveis.
-		if(s->slots < 0)
+		if(s->slots <= 0)
 		{
 			// Caso já tenha ultrapassado, atualizamos o status da tarefa\
 			e colocamos ela na fila de espera do semáforo, retornando-a para\
@@ -793,8 +796,9 @@ int sem_up (semaphore_t *s)
 			task_aux->task_status = ready;
 			task_aux = (task_t*) queue_remove((queue_t**)&(s->task_queue),\
 			(queue_t*)task_aux);
-			queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
 			task_aux->task_status = ready;
+			queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
+
 		}
 		yield_permission = 1;
 		return 0;
@@ -820,11 +824,12 @@ int sem_destroy (semaphore_t *s)
 		{
 			// Se houverem, remove 1 por 1 até a fila ficar vazia.
 			task_aux = s->task_queue;
-			task_aux->task_status = ready;
+			//task_aux->task_status = ready;
 			task_aux = (task_t*) queue_remove((queue_t**)&(s->task_queue),\
 			(queue_t*)task_aux);
-			queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
 			task_aux->task_status = ready;
+			queue_append((queue_t**)&ready_queue,(queue_t*)task_aux);
+
 		}
 	}
 	// Libertamos o semáforo e retorna 0.
